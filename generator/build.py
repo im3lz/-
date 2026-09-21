@@ -4,7 +4,7 @@
 Все размеры в миллиметрах. Запуск:  python3 generator/build.py
 Создаёт:  chertezhi.html  и  shablony-1-1.pdf  в корне репозитория.
 """
-import os, math
+import os, math, re
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 from reportlab.lib.units import mm as MM
@@ -90,6 +90,10 @@ PARTS = [
 ]
 
 # ---------------------------------------------------------------- SVG helpers
+def unit(label):
+    """К числовой подписи размера добавляет «мм»."""
+    return label + " мм" if re.fullmatch(r".*\d", label) else label
+
 class Svg:
     """Чертёж в мм; y считается от пола (вверх), пересчёт в SVG внутри."""
     def __init__(self, w, h, pad=(30, 30, 30, 30), scale=1.0):
@@ -115,7 +119,7 @@ class Svg:
             for x in (x1, x2):
                 self.line(x, ext, x, y + (2 if y > ext else -2), "ext")
         self.el.append(f'<line class="dim" x1="{self.X(x1):.1f}" y1="{self.Y(y):.1f}" x2="{self.X(x2):.1f}" y2="{self.Y(y):.1f}" marker-start="url(#a)" marker-end="url(#a)"/>')
-        self.text((x1 + x2) / 2, y + 1.6, label, "dimt")
+        self.text((x1 + x2) / 2, y + 1.6, unit(label), "dimt")
     def dim_v(self, x, y1, y2, label=None, ext=None, side="left"):
         label = label if label is not None else f"{abs(y2-y1):g}"
         if ext is not None:
@@ -124,9 +128,9 @@ class Svg:
         self.el.append(f'<line class="dim" x1="{self.X(x):.1f}" y1="{self.Y(y1):.1f}" x2="{self.X(x):.1f}" y2="{self.Y(y2):.1f}" marker-start="url(#a)" marker-end="url(#a)"/>')
         ym = (y1 + y2) / 2
         if side == "left":
-            self.text(x - 1.5, ym, label, "dimt", rot=-90)
+            self.text(x - 1.5, ym, unit(label), "dimt", rot=-90)
         else:
-            self.text(x + 4.2, ym, label, "dimt", rot=-90)
+            self.text(x + 4.2, ym, unit(label), "dimt", rot=-90)
     def render(self, title=""):
         vw = self.pl + self.w + self.pr
         vh = self.pt + self.h + self.pb
@@ -200,7 +204,7 @@ def front_view():
     door_cabinet_front(s, W + GAP_SHELF, right=True)
     # полка между шкафами
     s.rect(W, SHELF_TOP_Y - SHELF_BETWEEN_H, GAP_SHELF, SHELF_BETWEEN_H, "part")
-    s.text(W + GAP_SHELF / 2, SHELF_TOP_Y - 15, "полка 22×74×30", "lbl")
+    s.text(W + GAP_SHELF / 2, SHELF_TOP_Y - 15, "полка 22×74×30 мм", "lbl")
     # размеры
     s.dim_h(0, W, H_TOTAL + 12, ext=H_TOTAL)
     s.dim_h(W, W + GAP_SHELF, H_TOTAL + 12, ext=H_TOTAL)
@@ -211,8 +215,8 @@ def front_view():
     s.dim_v(TOTAL_W + 18, 0, H_LOW_SIDE + H_TOP, "тумба 98", ext=TOTAL_W + 4, side="right")
     s.dim_v(TOTAL_W + 18, H_LOW_SIDE + H_TOP, H_TOTAL, "витрина 212", ext=TOTAL_W + 4, side="right")
     s.dim_v(TOTAL_W + 34, 0, SHELF_TOP_Y, "верх полки 163", ext=TOTAL_W + 20, side="right")
-    s.text(W / 2, -18, "ЛЕВЫЙ ШКАФ — дверцы", "cap")
-    s.text(W + GAP_SHELF + W / 2, -18, "ПРАВЫЙ ШКАФ — 3 ящика", "cap")
+    s.text(W / 2, -18, "ЛЕВЫЙ ШКАФ — дверцы · размеры в мм", "cap")
+    s.text(W + GAP_SHELF + W / 2, -18, "ПРАВЫЙ ШКАФ — 3 ящика · размеры в мм", "cap")
     return s.render("Фасад композиции")
 
 def section_view(right=False):
@@ -272,11 +276,11 @@ def section_view(right=False):
     s.dim_h(0, D_UP + OVER, H_TOTAL + 8, "карниз 63", ext=H_TOTAL)
     s.dim_h(0, D_UP, UP_BASE + NICHE / 2, "60")
     s.dim_h(0, D_LOW, H_LOW_SIDE / 2, "70")
-    s.text(D_LOW / 2, -22, "ПРАВЫЙ ШКАФ, разрез" if right else "ЛЕВЫЙ ШКАФ, разрез", "cap")
+    s.text(D_LOW / 2, -22, "ПРАВЫЙ ШКАФ, разрез · мм" if right else "ЛЕВЫЙ ШКАФ, разрез · мм", "cap")
     return s.render("Боковой разрез")
 
 def door_drawing():
-    s = Svg(DOOR_W + 30, VDOOR_H + 30, pad=(30, 20, 40, 20), scale=2.6)
+    s = Svg(DOOR_W + 30, VDOOR_H + 30, pad=(30, 20, 40, 30), scale=2.6)
     s.rect(0, 0, DOOR_W, VDOOR_H, "door")
     s.rect(FRAME_SIDE, FRAME_BOT, WIN_W, WIN_H, "glass")
     # декоративная волна вверху окна
@@ -289,11 +293,12 @@ def door_drawing():
     s.dim_v(DOOR_W + 4, FRAME_BOT, FRAME_BOT + WIN_H, "116", ext=DOOR_W, side="right")
     s.dim_v(DOOR_W + 4, FRAME_BOT + WIN_H, VDOOR_H, "14", ext=DOOR_W, side="right")
     s.text(-18, VDOOR_H / 2, "петли снаружи", "lbl", rot=-90)
+    s.text(DOOR_W / 2, -18, "ДВЕРЦА ВИТРИНЫ · мм", "cap")
     return s.render("Дверца витрины")
 
 def drawer_drawing():
     """Ящик: вид спереди + сбоку с зазорами."""
-    s = Svg(W + 90, 40, pad=(20, 14, 20, 16), scale=2.6)
+    s = Svg(W + 90, 40, pad=(20, 14, 20, 22), scale=2.6)
     # проём
     s.rect(0, 0, T, 30, "cut"); s.rect(W - T, 0, T, 30, "cut")
     s.rect(T, 0, W_IN, S, "shelf")                       # опора
@@ -306,6 +311,7 @@ def drawer_drawing():
     s.dim_v(W + 8, S, S + T + 21, "23", ext=W, side="right")
     s.dim_v(W + 20, S - 1, S - 1 + FRONT_H, "27", ext=W, side="right")
     s.text(W / 2, 12, "зазор 2 мм сверху до столешницы", "lbl")
+    s.text(W / 2, -13, "ЯЩИК, вид спереди · мм", "cap")
     return s.render("Ящик")
 
 # ---------------------------------------------------------------- HTML
@@ -372,8 +378,8 @@ def parts_table():
         if g not in seen:
             seen.add(g); rows.append(f'<tr class="grp"><td colspan="6">{groups[g]}</td></tr>')
         th = "пластик" if t == 0 else f"{t} мм"
-        rows.append(f'<tr><td class="n">{code}</td><td>{name}</td><td class="n">{w} × {h}</td><td class="n">{th}</td><td class="n">{n} шт</td><td>{note}</td></tr>')
-    return ('<div class="tbl"><table><thead><tr><th>№</th><th>Деталь</th><th>Размер, мм (ширина × высота)</th><th>Картон</th><th>Всего</th><th>Примечание</th></tr></thead><tbody>'
+        rows.append(f'<tr><td class="n">{code}</td><td>{name}</td><td class="n">{w} × {h} мм</td><td class="n">{th}</td><td class="n">{n} шт</td><td>{note}</td></tr>')
+    return ('<div class="tbl"><table><thead><tr><th>№</th><th>Деталь</th><th>Размер, мм (ширина × высота)</th><th>Толщина</th><th>Всего</th><th>Примечание</th></tr></thead><tbody>'
             + "".join(rows) + "</tbody></table></div>")
 
 def build_html():
@@ -384,12 +390,13 @@ def build_html():
 <main>
 <div class="eyebrow">Палитурный картон 2 мм · полки 3 мм · масштаб под куклу 28 см</div>
 <h1>Два шкафа-серванта из картона</h1>
+<p class="lead"><b>Все размеры на чертежах и в таблице в миллиметрах</b> (1 см = 10 мм). Размеры декора, которые ты присылала в см, здесь пересчитаны в мм.</p>
 <p class="lead">Чертежи в миллиметрах, все размеры уже с учётом толщины картона и склейки «торец к плоскости». Обводить можно прямо по таблице деталей или распечатать PDF-шаблоны 1:1.</p>
 <div class="keys">
 <div class="key"><b>310</b><span>высота шкафа, мм (кукла 280 + 30)</span></div>
 <div class="key"><b>154</b><span>ширина шкафа, мм</span></div>
 <div class="key"><b>60 / 70</b><span>глубина витрины / тумбы, мм</span></div>
-<div class="key"><b>382</b><span>ширина композиции с полкой 74</span></div>
+<div class="key"><b>382</b><span>ширина композиции с полкой 74, мм</span></div>
 <div class="key"><b>150</b><span>внутри между боками, мм</span></div>
 </div>
 
@@ -403,7 +410,7 @@ def build_html():
 <figure style="display:flex;gap:24px;flex-wrap:wrap;align-items:flex-start">{dd}{dr}<figcaption style="flex-basis:100%">Дверца витрины: рамка из картона 2 мм, «стекло» из прозрачного пластика 68×126 приклеивается с изнанки. Волна в верху окна вырезается по желанию. Ящик правого шкафа: выдвигается только верхний, два нижних фасада ложные и клеятся на заглушку П2.</figcaption></figure>
 
 <h2>Карта деталей</h2>
-<p>Количество указано сразу на оба шкафа. Ширина везде первая, высота (или глубина для горизонтальных панелей) вторая. Ориентация «ширина × глубина» у полок: 150 — поперёк шкафа, 58 — от фасада к заднику.</p>
+<p>Все размеры в миллиметрах. Количество указано сразу на оба шкафа. Ширина везде первая, высота (или глубина для горизонтальных панелей) вторая. Ориентация «ширина × глубина» у полок: 150 — поперёк шкафа, 58 — от фасада к заднику.</p>
 {parts_table()}
 
 <h2>Отступы на клей: не нужны</h2>
@@ -498,7 +505,7 @@ def build_pdf():
                 c.setFont(font, 6); c.drawString(x + 20 * MM, y + 70 * MM, "66/69 только правый шкаф")
             c.setFont(font, 6); c.drawString(x + W_ - 14 * MM, y + 1 * MM, "перед →")
         c.setFont(font, 8)
-        label = f"{code} {name} · {w}×{h} · {'пластик' if t==0 else str(t)+' мм'} · {n} шт"
+        label = f"{code} {name} · {w}×{h} мм · {'пластик' if t==0 else str(t)+' мм'} · {n} шт"
         if W_ > H_ * 1.2 or H_ < 20 * MM:
             c.drawString(x + 2 * MM, y + H_ - 4 * MM if H_ > 8 * MM else y + H_ + 1 * MM, label)
         else:
