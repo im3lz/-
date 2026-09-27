@@ -336,14 +336,111 @@ def drawer_drawing():
     s.text(W / 2, -13, "ЯЩИК, вид спереди · см", "cap")
     return s.render("Ящик")
 
+
+# ---------------------------------------------------------------- где стоит В6
+def iso_cap_view():
+    """Изометрия витрины с приподнятой крышкой-карнизом В6."""
+    C, Sn = 0.866, 0.5
+    def P(x, y, z):
+        return ((x - y) * C, (x + y) * Sn - z)
+    LIFT = 45
+    top = H_UP_SIDE
+    boxes = [  # (x0,x1,y0,y1,z0,z1, класс, подпись)
+        (0, W, 0, T, 0, top, "iso-b", "back"),
+        (0, T, T, D_UP, 0, top, "iso-b", "lside"),
+        (T, W - T, T, D_UP, FLOOR_Y, FLOOR_Y + S, "iso-s", "floor"),
+        (T + .5, W - T - .5, T, D_UP - 1, SHELF3_Y, SHELF3_Y + S, "iso-s", "sh3"),
+        (T + .5, W - T - .5, T, D_UP - 1, SHELF2_Y, SHELF2_Y + S, "iso-s", "sh2"),
+        (T, W - T, T, D_UP, TOPP_Y, TOPP_Y + T, "iso-s", "top"),
+        (W - T, W, T, D_UP, 0, top, "iso-b", "rside"),
+        (-OVER, W + OVER, 0, D_UP + OVER, top + LIFT, top + LIFT + H_CAP, "iso-h", "cap"),
+    ]
+    # порядок отрисовки: A раньше B, если A целиком «дальше» по любой оси
+    def behind(a, b):
+        return a[1] <= b[0] or a[3] <= b[2] or a[5] <= b[4]
+    order, rest = [], boxes[:]
+    while rest:
+        for bx in rest:
+            if not any(behind(o, bx) and o is not bx for o in rest if o is not bx):
+                order.append(bx); rest.remove(bx); break
+        else:
+            order.append(rest.pop(0))
+    pts = [P(x, y, z) for b in boxes for x in b[:2] for y in b[2:4] for z in b[4:6]]
+    minx = min(p[0] for p in pts) - 10; maxx = max(p[0] for p in pts) + 190
+    miny = min(p[1] for p in pts) - 12; maxy = max(p[1] for p in pts) + 18
+    def poly(cs, cls):
+        d = " ".join(f"{x - minx:.1f},{y - miny:.1f}" for x, y in cs)
+        return f'<polygon class="{cls}" points="{d}"/>'
+    def line(a, b, cls):
+        return f'<line class="{cls}" x1="{a[0]-minx:.1f}" y1="{a[1]-miny:.1f}" x2="{b[0]-minx:.1f}" y2="{b[1]-miny:.1f}"/>'
+    def text(pt, s_, cls="lbl", anchor="start"):
+        return f'<text class="{cls}" x="{pt[0]-minx:.1f}" y="{pt[1]-miny:.1f}" text-anchor="{anchor}">{s_}</text>'
+    el = []
+    for x0, x1, y0, y1, z0, z1, cls, _ in order:
+        el.append(poly([P(x0, y0, z1), P(x1, y0, z1), P(x1, y1, z1), P(x0, y1, z1)], cls + "t"))
+        el.append(poly([P(x0, y1, z0), P(x1, y1, z0), P(x1, y1, z1), P(x0, y1, z1)], cls + "f"))
+        el.append(poly([P(x1, y0, z0), P(x1, y1, z0), P(x1, y1, z1), P(x1, y0, z1)], cls + "r"))
+        if cls == "iso-b" and _ == "rside":
+            # после правого бока — след крышки на верхе витрины
+            gx = [(-OVER, 0), (W + OVER, 0), (W + OVER, D_UP + OVER), (-OVER, D_UP + OVER)]
+            el.append(poly([P(x, y, top) for x, y in gx], "iso-ghost"))
+            el.append(poly([P(0, 0, top), P(W, 0, top), P(W, D_UP, top), P(0, D_UP, top)], "iso-glue"))
+    # стрелки опускания
+    for x, y in [(-OVER, D_UP + OVER), (W + OVER, D_UP + OVER), (W + OVER, 0)]:
+        el.append(line(P(x, y, top + LIFT - 2), P(x, y, top + 3), "iso-drop"))
+    # подписи
+    cap_r = P(W + OVER, D_UP / 2, top + LIFT + H_CAP)
+    lx = maxx - 185
+    el.append(line(cap_r, (lx - 4, cap_r[1] - 8), "iso-lead"))
+    el.append(text((lx, cap_r[1] - 16), f"В6 крышка-карниз", "iso-cap"))
+    el.append(text((lx, cap_r[1] - 7), f"{cm(W + 2*OVER)} × {cm(D_UP + OVER)} см, картон 3 мм"))
+    el.append(text((lx, cap_r[1] + 1), "кладётся сверху на витрину, клей по верху"))
+    el.append(text((lx, cap_r[1] + 9), "боков В1, задника В2 и верхней панели В3"))
+    gp = P(W, D_UP, top)
+    el.append(line(gp, (lx - 4, gp[1] + 10), "iso-lead"))
+    el.append(text((lx, gp[1] + 8), "зелёное — зона клея (верх корпуса)"))
+    el.append(text((lx, gp[1] + 16), "пунктир — где ляжет крышка: свес 0,3 см"))
+    el.append(text((lx, gp[1] + 24), "спереди и по бокам, сзади заподлицо"))
+    fp = P(W / 2, D_UP, FLOOR_Y / 2)
+    el.append(text((fp[0], fp[1] + 10), "перед (здесь дверцы) ↙", "lbl", "middle"))
+    bp = P(W / 2, 0, top * 0.55)
+    el.append(text((P(W, D_UP, top*0.4)[0] + 4, P(W, D_UP, top*0.4)[1]), "бок В1", "lbl"))
+    vw, vh = maxx - minx, maxy - miny
+    return (f'<svg class="dwg iso" viewBox="0 0 {vw:.0f} {vh:.0f}" width="{vw*1.7:.0f}" role="img" '
+            f'aria-label="Где стоит крышка-карниз В6">' + "".join(el) + '</svg>')
+
+def cap_zoom_view():
+    """Увеличенный разрез верха витрины: В6 над В1/В2/В3 и дверцей."""
+    Z0 = TOPP_Y - 12                      # низ окна разреза, от низа бока витрины
+    s = Svg(D_UP + 30, 30, pad=(12, 16, 36, 12), scale=7)
+    z = lambda v: v - Z0
+    s.rect(T, 0, D_UP - T, z(H_UP_SIDE), "behind")        # бок за плоскостью
+    s.rect(0, 0, T, z(H_UP_SIDE), "cut")                     # задник В2
+    s.rect(T, z(TOPP_Y), D_UP - T, T, "cut")                 # верх В3
+    s.rect(D_UP, 0, T, z(VDOOR_Y + VDOOR_H), "door")         # дверца
+    s.rect(0, z(H_UP_SIDE), D_UP + OVER, H_CAP, "hl")        # В6
+    s.text(D_UP / 2, z(H_UP_SIDE) + 1.1, "В6 крышка-карниз", "zlbl")
+    s.text(D_UP / 2 - 12, z(TOPP_Y) - 3.5, "В3 верхняя панель", "zlbl")
+    s.text(-3, 5, "В2", "zlbl", anchor="end")
+    s.text(D_UP + T + 2, 5, "дверца", "zlbl", anchor="start")
+    s.text(D_UP / 2, 5, "бок В1 (за разрезом)", "zlbl")
+    # размеры
+    s.dim_h(0, D_UP + OVER, z(H_UP_SIDE + H_CAP) + 8, ext=z(H_UP_SIDE + H_CAP))
+    s.dim_h(D_UP, D_UP + OVER, z(H_UP_SIDE + H_CAP) + 3, "свес 3", ext=z(H_UP_SIDE + H_CAP))
+    s.dim_v(D_UP + 12, z(VDOOR_Y + VDOOR_H), z(H_UP_SIDE), "зазор 1", ext=D_UP + T, side="right")
+    s.dim_v(-8, z(H_UP_SIDE), z(H_UP_SIDE + H_CAP), "3", ext=0)
+    s.text(D_UP / 2, -9, "РАЗРЕЗ ВЕРХА ВИТРИНЫ · см", "zcap")
+    out = s.render("Разрез верха витрины").replace('class="dwg"', 'class="dwg zoom"', 1)
+    return out.replace('id="a" viewBox="0 0 6 6" refX="3" refY="3" markerWidth="6" markerHeight="6"', 'id="az" viewBox="0 0 6 6" refX="3" refY="3" markerWidth="2.2" markerHeight="2.2"').replace('url(#a)', 'url(#az)')
+
 # ---------------------------------------------------------------- HTML
 CSS = """
 :root{--paper:#f6f3ec;--ink:#2b2622;--muted:#6f655b;--line:#3d3833;--cut:#8b5a2b;--cutfill:#d9b98f;
---shelf:#c99a63;--door:#eadfcd;--glass:#dbe6e3;--dim:#1f5f8b;--acc:#8b3a2f;--rule:#d8d0c2;--card:#fffdf8;--hw:#6a6a6a;--behind:#efe8db}
+--shelf:#c99a63;--door:#eadfcd;--glass:#dbe6e3;--dim:#1f5f8b;--acc:#8b3a2f;--rule:#d8d0c2;--card:#fffdf8;--hw:#6a6a6a;--behind:#efe8db;--hlt:#e9a898;--hlr:#a8493a;--glue:#5c9a5a}
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--paper:#1d1a17;--ink:#ece5da;--muted:#a79d90;--line:#d9d0c3;--cut:#c98f57;--cutfill:#6b4a2b;
---shelf:#a4783f;--door:#3a332b;--glass:#2c3d3b;--dim:#7cb8e0;--acc:#e0876f;--rule:#3a342e;--card:#26221e;--hw:#bbb;--behind:#2a2621}}
+--shelf:#a4783f;--door:#3a332b;--glass:#2c3d3b;--dim:#7cb8e0;--acc:#e0876f;--rule:#3a342e;--card:#26221e;--hw:#bbb;--behind:#2a2621;--hlt:#c9705c;--hlr:#7e3326;--glue:#7fc27c}}
 :root[data-theme="dark"]{--paper:#1d1a17;--ink:#ece5da;--muted:#a79d90;--line:#d9d0c3;--cut:#c98f57;--cutfill:#6b4a2b;
---shelf:#a4783f;--door:#3a332b;--glass:#2c3d3b;--dim:#7cb8e0;--acc:#e0876f;--rule:#3a342e;--card:#26221e;--hw:#bbb;--behind:#2a2621}
+--shelf:#a4783f;--door:#3a332b;--glass:#2c3d3b;--dim:#7cb8e0;--acc:#e0876f;--rule:#3a342e;--card:#26221e;--hw:#bbb;--behind:#2a2621;--hlt:#c9705c;--hlr:#7e3326;--glue:#7fc27c}
 body{background:var(--paper);color:var(--ink);font-family:"Alegreya Sans",system-ui,sans-serif;font-size:17px;line-height:1.45;padding-block:24px 60px;padding-inline:16px}
 main{max-width:1100px;margin:0 auto}
 h1,h2,h3{font-family:"Alegreya",Georgia,serif;text-wrap:balance;line-height:1.15;margin:0}
@@ -389,6 +486,17 @@ ol,ul{max-width:72ch;padding-left:1.3rem}li{margin:.35rem 0}
 .check{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px 20px;max-width:900px;font-size:.95rem}
 .check div{padding:6px 0;border-bottom:1px dashed var(--rule)}
 .check b{font-family:"JetBrains Mono",monospace;font-weight:500}
+.iso-bt{fill:var(--cutfill);stroke:var(--cut);stroke-width:.3}.iso-bf{fill:var(--shelf);stroke:var(--cut);stroke-width:.3}.iso-br{fill:var(--cut);stroke:var(--cut);stroke-width:.3}
+.iso-st{fill:var(--shelf);stroke:var(--cut);stroke-width:.3}.iso-sf{fill:var(--cut);stroke:var(--cut);stroke-width:.3}.iso-sr{fill:var(--cut);stroke:var(--cut);stroke-width:.3}
+.iso-ht{fill:var(--hlt);stroke:var(--acc);stroke-width:.5}.iso-hf{fill:var(--acc);stroke:var(--acc);stroke-width:.5}.iso-hr{fill:var(--hlr);stroke:var(--acc);stroke-width:.5}
+.iso-ghost{fill:none;stroke:var(--acc);stroke-width:.6;stroke-dasharray:2 1.4}.iso-glue{fill:var(--glue);fill-opacity:.55;stroke:none}
+.iso-drop{stroke:var(--acc);stroke-width:.5;stroke-dasharray:1.5 1.2}.iso-lead{stroke:var(--muted);stroke-width:.3}
+.iso-cap{fill:var(--acc);font-size:6px;font-weight:600;font-family:"Alegreya Sans",sans-serif}
+svg.iso .lbl{font-size:6.2px;stroke-width:1.6px}svg.iso .iso-cap{font-size:8px}
+.hl{fill:var(--hlt);stroke:var(--acc);stroke-width:.3}
+svg.zoom .dimt{font-size:2.1px;stroke-width:.6px}svg.zoom .dim{stroke-width:.15}svg.zoom .ext{stroke-width:.12}
+svg.zoom .cut,svg.zoom .door{stroke-width:.2}.zlbl{fill:var(--ink);font-size:2.1px;paint-order:stroke;stroke:var(--card);stroke-width:.5px}
+.zcap{fill:var(--ink);font-size:2.8px;font-weight:600;font-family:"Alegreya Sans",sans-serif}
 """
 
 def parts_table():
@@ -406,6 +514,7 @@ def parts_table():
 
 def build_html():
     fv, sl, sr, dd, dr = front_view(), section_view(False), section_view(True), door_drawing(), drawer_drawing()
+    iso, cz = iso_cap_view(), cap_zoom_view()
     html = f"""<title>Сервант для Спектры</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Alegreya:wght@500;600&family=Alegreya+Sans:wght@400;600&family=JetBrains+Mono:wght@400;500&display=swap">
 <style>{CSS}</style>
@@ -427,6 +536,10 @@ def build_html():
 
 <h2>Разрезы</h2>
 <figure style="display:flex;gap:24px;flex-wrap:wrap;justify-content:center">{sl}{sr}<figcaption style="flex-basis:100%">Разрез через середину. Слева — размеры в свету, справа — отметки, которые переносятся на бока карандашом (низ соответствующей полки, от нижнего края бока). Задняя стенка клеится на торцы сзади, поэтому глубина боков на 0,2 см меньше наружной.</figcaption></figure>
+
+<h2>Где стоит крышка-карниз В6</h2>
+<p>В6 — это «крыша» шкафа: плоская пластина из картона 3 мм, которая кладётся сверху на собранную коробку витрины. Она чуть больше корпуса, поэтому выступает на 0,3 см спереди и по бокам, как карниз на настоящем серванте, а сзади идёт ровно по заднику. Внутрь шкафа она не вставляется.</p>
+<figure style="display:flex;gap:24px;flex-wrap:wrap;align-items:center">{iso}{cz}<figcaption style="flex-basis:100%">Слева витрина без дверок, крышка показана приподнятой. Клей наносится на зелёную зону: верхние торцы боков В1, задника В2 и верх панели В3, они на одном уровне. Справа разрез: крышка лежит на корпусе, её свес прикрывает верх закрытой дверцы, между ними зазор 0,1 см.</figcaption></figure>
 
 <h2>Дверца витрины и ящик</h2>
 <figure style="display:flex;gap:24px;flex-wrap:wrap;align-items:flex-start">{dd}{dr}<figcaption style="flex-basis:100%">Дверца витрины: рамка из картона 2 мм, «стекло» из прозрачного пластика 5,7×11,6 см приклеивается с изнанки. Сверху и снизу дверцы зазор 0,1 см, чтобы не тёрлась о карниз и планку. Волна в верху окна вырезается по желанию. Ящик правого шкафа: выдвигается только верхний, два нижних фасада ложные и клеятся на заглушку П2.</figcaption></figure>
